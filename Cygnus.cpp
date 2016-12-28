@@ -94,12 +94,11 @@ point sfd2(point curPoint, functionStruct f1)
     point returned;
     double *gradPtr = numericalGrad(f1.function, curPoint.x, curPoint.y);//Obtain partial derivatives
     double x_prime = curPoint.x + (*(gradPtr + 1) * STEP_SIZE);//Use pointer arithmetic
-    double y_prime = curPoint.y + ((-1 * (*gradPtr)) * STEP_SIZE);
-    double *gradPtr_prime = numericalGrad(f1.function, x_prime, y_prime);
+    double y_prime = curPoint.y + ((-1 * (*gradPtr)) * STEP_SIZE);//Move a step distance down the tangent line to point (x_prime, y_prime)
+    double *gradPtr_prime = numericalGrad(f1.function, x_prime, y_prime);//Compute gradient at this point to determine line H
     double M = (*(gradPtr_prime + 1) - y_prime) / (*gradPtr_prime - x_prime);
     double B = y_prime - M * x_prime;
-    return newton(f1.function, M, B, x_prime);
-    /*Implementation of Newton's Method */
+    return newton(f1.function, M, B, x_prime);//Find intersection between line H and function F, return result
 }
 
 //Function to determine if a point is within the overall boundaries of the search
@@ -117,7 +116,7 @@ double* numericalGrad(string function, double a, double b) {
     returnPtr = partials;
     partials[0] = (eval(function, a + h, b) - eval(function, a - h, b)) / (2 * h);//df/dx
     partials[1] = (eval(function, a, b + h) - eval(function, a, b - h)) / (2 * h);//df/dy
-    return returnPtr;
+    return returnPtr;//Return as array
 }
 
 //Evaluate a function f(x,y) at a point (x,y), return value of function at point (x,y)
@@ -137,10 +136,25 @@ double eval(string function, double a, double b)
   return result;
 }
 
+//Function to find the intersection of Boundary curve F and line H using Newton's Method
 point newton(string function, double M, double B, double x_init)
 {
-    /*Newton's Method*/
-    return NULL;
+    double x_i1, x_i, H, fxh, dfdx;
+    int n = 0;
+    x_i1 = x_init;
+    while(abs(x_i1 - x_i) >= EPSILON && n <= 8)//2 Constraints: epsilon and number of iterations
+    {
+        H = M * x_i1 + B;
+        fxh = eval(function, x_i1, H);//y is function of x, sub in for y, reducing to a nonlinear equation in 1 variable
+        dfdx = (eval(function, x_i1 + h, H) - eval(function, x_i1 - h, H)) / (2 * h);//Perfom Newton's Method
+        x_i = x_i1;
+        x_i1 -= fxh/dfdx;
+        n += 1;
+    }
+    point returned;
+    returned.x = x_i;
+    returned.y = H;
+    return returned;//Return point
 }
 
 
@@ -186,7 +200,7 @@ int main() {
   for(i = 0; i < functionVector.size(); i++)//Do search
   {
     functionStruct fs1 = functionVector[i];
-    dfs(fs1);
+    traversal(fs1);
   }
   double area = calcArea(orderedPoints);//Calculate area
   clk = clock() - clk;
