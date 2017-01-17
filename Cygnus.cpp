@@ -35,10 +35,6 @@ struct functionStruct {
     string function;//f(x,y) that forms boundary of shape
     point start;//Starting point of traversal
     point end;//End point of traversal. For a closed loop, start = end
-    double xmin;//Min. x-coordinate of function
-    double xmax;//Max. x-coordinate of function
-    double ymin;//Min. y-coordinate of function
-    double ymax;//Max. y-coordinate of function
 };
 
 vector<point> orderedPoints;//Stores points in order
@@ -48,6 +44,7 @@ typedef exprtk::expression<double> expression_t;
 typedef exprtk::parser<double> parser_t;
 expression_t expression;//Setting up evaluation infrastructure-no need to do this multiple times
 parser_t parser;
+symbol_table_t symbol_table;
 
 /**********************Function Declarations**********************************/
 void printPoint();//Function to print a strung representation of a point
@@ -56,13 +53,13 @@ point sfd2(point, functionStruct);//Function to determine the next point in the 
 int inBounds(point, functionStruct);//Function to determine if a point is within the overall boundaries of the search
 double eval(string, double, double);//Function to evaluate the function at a point (x,y)
 double *numericalGrad(string, double, double);//Function to numerically calculate the partial derivatives a two-variable function f(x,y)
-point newton(string, double, double, double);//Newton's Method
+point bisect(string, double, double, double);//Newton's Method
 double calcArea(vector<point>);//Function to calculate area
 
 //Function to print a string representation of a point
 void printPoint(point point1)
 {
-  printf("(%lf, %lf) ", point1.x, point1.y);
+  printf("(%lf, %lf) \n", point1.x, point1.y);
 }
 
 /*
@@ -76,6 +73,8 @@ void traversal(functionStruct fs1)
     end = fs1.end;
     orderedPoints.push_back(curPoint);//Adding starting and first point to storage
     curPoint = sfd2(curPoint, fs1);
+    printPoint(curPoint);
+    exit(1);
     orderedPoints.push_back(curPoint);
     while(!(curPoint == end))//Doing traversal
     {
@@ -98,15 +97,7 @@ point sfd2(point curPoint, functionStruct f1)
     double *gradPtr_prime = numericalGrad(f1.function, x_prime, y_prime);//Compute gradient at this point to determine line H
     double M = (*(gradPtr_prime + 1) - y_prime) / (*gradPtr_prime - x_prime);
     double B = y_prime - M * x_prime;
-    return newton(f1.function, M, B, x_prime);//Find intersection between line H and function F, return result
-}
-
-//Function to determine if a point is within the overall boundaries of the search
-int inBounds(point p, functionStruct grid1)
-{
-    if (p.x >= grid1.xmin && p.x <= grid1.xmax && p.y >= grid1.ymin && p.y <= grid1.ymax)
-        return 1;
-    return 0;
+    return bisect(f1.function, M, B, x_prime + STEP_SIZE);//Find intersection between line H and function F, return result
 }
 
 //Function to numerically calculate the gradient of a function f(x,y) at point (a,b)
@@ -122,7 +113,6 @@ double* numericalGrad(string function, double a, double b) {
 //Evaluate a function f(x,y) at a point (x,y), return value of function at point (x,y)
 double eval(string function, double a, double b)
 {
-  symbol_table_t symbol_table;
   symbol_table.add_constants();
   symbol_table.add_variable("x", a);
   symbol_table.add_variable("y", b);
@@ -136,24 +126,22 @@ double eval(string function, double a, double b)
   return result;
 }
 
-//Function to find the intersection of Boundary curve F and line H using Newton's Method
-point newton(string function, double M, double B, double x_init)
+//Function to find the intersection of Boundary curve F and line H using bisection method
+point bisect(string function, double M, double B, double x_init)
 {
-    double x_i1, x_i, H, fxh, dfdx;
-    int n = 0;
-    x_i1 = x_init;
-    while(abs(x_i1 - x_i) >= EPSILON && n <= 8)//2 Constraints: epsilon and number of iterations
+    double a_x, a_y, b_x, b_y, c_x, c_y;
+    a_x = x_init;
+    a_y = M * a_x + B;
+    b_x = a_x - (2 * STEP_SIZE);
+    b_y = M * a_y + B;
+    int k = 0;
+    while((sqrt(pow(a_x - b_x, 2) + pow(a_y - b_y, 2)) / pow(2, k)) <= EPSILON)//2 Constraints: epsilon and number of iterations
     {
-        H = M * x_i1 + B;
-        fxh = eval(function, x_i1, H);//y is function of x, sub in for y, reducing to a nonlinear equation in 1 variable
-        dfdx = (eval(function, x_i1 + h, H) - eval(function, x_i1 - h, H)) / (2 * h);//Perfom Newton's Method
-        x_i = x_i1;
-        x_i1 -= fxh/dfdx;
-        n += 1;
+        /*TO DO*/
     }
     point returned;
-    returned.x = x_i;
-    returned.y = H;
+    returned.x = x_i1;
+    returned.y = M * x_i1 + B;
     return returned;//Return point
 }
 
@@ -183,10 +171,6 @@ double calcArea(vector<point> orderedPoints)
 int main() {
   functionStruct fs0;
   fs0.function = "(x*x)+(x*y)+(y*y)-4";//Shape(Ellipse)
-  fs0.xmin = -2.31;
-  fs0.xmax = 2.31;
-  fs0.ymin = -2.31;
-  fs0.ymax = 2.31;
   point start1;
   start1.x = 0.0;
   start1.y = 2.0;
