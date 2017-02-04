@@ -7,6 +7,7 @@ Cygnus -The seventh major iteration of our Algorithm to numerically do Green's T
 
 #include <iostream>
 #include <vector>
+#include <util>
 #include <cmath>
 #include <string>
 #include <ctime>
@@ -16,28 +17,22 @@ using namespace std;
 double STEP_SIZE = 0.1;//Step Size
 double h = 0.0000001;//Needed for numerical differentiation
 double EPSILON = 0.00001;//Epsilon needed for operations with doubles
-/*****************************Structure Definitions**************************/
-//Point structure for a point (x,y)
-struct point{
-    double x;//x-coordinate
-    double y;//y-coordinate
-};
 
-//Overload == operator for use with points
-inline bool operator == (point const& p, point const& q)
+//Overload == operator for use with pairs of doubles
+inline bool operator == (pair<double,double> const& p, pair<double,double> const& q)
 {
-    return (abs(p.x - q.x) <= EPSILON && abs(p.y - q.y) <= EPSILON);
+    return (abs(p.first - q.first) <= EPSILON && abs(p.second - q.second) <= EPSILON);
 }
 
 /*Function structure contains function f(x,y) as well as the minimum and maximum x-
 and y- coordinates for which the function is defined*/
 struct functionStruct {
     string function;//f(x,y) that forms boundary of shape
-    point start;//Starting point of traversal
-    point end;//End point of traversal. For a closed loop, start = end
+    pair<double,double> start;//Starting point of traversal
+    pair<double,double> end;//End point of traversal. For a closed loop, start = end
 };
 
-vector<point> orderedPoints;//Stores points in order
+vector<pair<double,double>> orderedPoints;//Stores points in order
 //Type definitions from ExprTk library
 typedef exprtk::symbol_table<double> symbol_table_t;
 typedef exprtk::expression<double> expression_t;
@@ -49,17 +44,25 @@ symbol_table_t symbol_table;
 /**********************Function Declarations**********************************/
 void printPoint();//Function to print a strung representation of a point
 void traversal(functionStruct);//Function to obtain points along boundary of shape
-point sfd2(point, functionStruct);//Function to determine the next point in the search
-int inBounds(point, functionStruct);//Function to determine if a point is within the overall boundaries of the search
-double eval(string, double, double);//Function to evaluate the function at a point (x,y)
+pair<double,double> getPoint(pair<double,double>, functionStruct);//Function to determine the next point in the search
+double eval(pair<double,double>, double, double);//Function to evaluate the function at a point (x,y)
 double *numericalGrad(string, double, double);//Function to numerically calculate the partial derivatives a two-variable function f(x,y)
-point bisect(string, double, double, double);//Newton's Method
-double calcArea(vector<point>);//Function to calculate area
+double calcArea(vector<pair<double,double>>);//Function to calculate area
 
-//Function to print a string representation of a point
-void printPoint(point point1)
+//Evaluate a function f(x,y) at a point (x,y), return value of function at point (x,y)
+double eval(string function, double a, double b)
 {
-  printf("(%lf, %lf) \n", point1.x, point1.y);
+  symbol_table.add_constants();
+  symbol_table.add_variable("x", a);
+  symbol_table.add_variable("y", b);
+  expression.register_symbol_table(symbol_table);
+  if(!(parser.compile(function, expression)))//If f(x,y) is not a valid expression that can be evaluated by ExprTk
+  {
+    printf("Error: %s\tExpression: %s\n", parser.error().c_str(), function.c_str());
+    exit(1);
+  }
+  double result = expression.value();
+  return result;
 }
 
 /*
@@ -68,17 +71,15 @@ points (x,y) along boundary of shape to then calculate area.
 */
 void traversal(functionStruct fs1)
 {
-    point curPoint, end, next;
+    pair<double,double> curPoint, end, next;
     curPoint = fs1.start;
     end = fs1.end;
     orderedPoints.push_back(curPoint);//Adding starting and first point to storage
-    curPoint = sfd2(curPoint, fs1);
-    printPoint(curPoint);
-    exit(1);
+    curPoint = getPoint(curPoint, fs1);
     orderedPoints.push_back(curPoint);
     while(!(curPoint == end))//Doing traversal
     {
-      next = sfd2(curPoint, fs1);//Obtain next search point
+      next = getPoints(curPoint, fs1);//Obtain next search point
       orderedPoints.push_back(next);//Add to storage
       curPoint = next;
     }
@@ -88,20 +89,14 @@ void traversal(functionStruct fs1)
 to the boundary curve at that point, moving a fixed step distance along the tangent line,
 comuting the normal to the line at that point, and then finding where the normal line and
 the boundary curve intersect. This is called the SirFrancisDrake Algorithm*/
-point sfd2(point curPoint, functionStruct f1)
+pair<double,double> getPoint(pair<double,double> curPoint, functionStruct f1)
 {
-    point returned;
-    double *gradPtr = numericalGrad(f1.function, curPoint.x, curPoint.y);//Obtain partial derivatives
-    double x_prime = curPoint.x + (*(gradPtr + 1) * STEP_SIZE);//Use pointer arithmetic
-    double y_prime = curPoint.y + ((-1 * (*gradPtr)) * STEP_SIZE);//Move a step distance down the tangent line to point (x_prime, y_prime)
-    double *gradPtr_prime = numericalGrad(f1.function, x_prime, y_prime);//Compute gradient at this point to determine line H
-    double M = (*(gradPtr_prime + 1) - y_prime) / (*gradPtr_prime - x_prime);
-    double B = y_prime - M * x_prime;
-    return bisect(f1.function, M, B, x_prime + STEP_SIZE);//Find intersection between line H and function F, return result
+    /*REDO*/
 }
 
 //Function to numerically calculate the gradient of a function f(x,y) at point (a,b)
-double* numericalGrad(string function, double a, double b) {
+double* numericalGrad(string function, double a, double b)
+{
     double partials[2];
     double *returnPtr;
     returnPtr = partials;
@@ -126,29 +121,9 @@ double eval(string function, double a, double b)
   return result;
 }
 
-//Function to find the intersection of Boundary curve F and line H using bisection method
-point bisect(string function, double M, double B, double x_init)
-{
-    double a_x, a_y, b_x, b_y, c_x, c_y;
-    a_x = x_init;
-    a_y = M * a_x + B;
-    b_x = a_x - (2 * STEP_SIZE);
-    b_y = M * a_y + B;
-    int k = 0;
-    while((sqrt(pow(a_x - b_x, 2) + pow(a_y - b_y, 2)) / pow(2, k)) <= EPSILON)//2 Constraints: epsilon and number of iterations
-    {
-        /*TO DO*/
-    }
-    point returned;
-    returned.x = x_i1;
-    returned.y = M * x_i1 + B;
-    return returned;//Return point
-}
-
-
 /*Function that actually calculates area, given points along boundary of shape
 using variation of Green's Theorem*/
-double calcArea(vector<point> orderedPoints)
+double calcArea(vector<pair<double,double>> orderedPoints)
 {
   double area = 0.0;
   int idx = 0;//Index in vector
@@ -157,9 +132,9 @@ double calcArea(vector<point> orderedPoints)
   while(numItr < size)
   {
       if(numItr < size - 1)
-          area += ((orderedPoints[idx].x * orderedPoints[idx + 1].y) - (orderedPoints[idx].y * orderedPoints[idx + 1].x));
+          area += ((orderedPoints[idx].first * orderedPoints[idx + 1].second) - (orderedPoints[idx].second * orderedPoints[idx + 1].first));
       else
-          area += ((orderedPoints[idx].x * orderedPoints[0].y) - (orderedPoints[0].x * orderedPoints[idx].y));
+          area += ((orderedPoints[idx].first * orderedPoints[0].second) - (orderedPoints[0].first * orderedPoints[idx].second));
       idx++;
       numItr++;
   }
@@ -171,9 +146,9 @@ double calcArea(vector<point> orderedPoints)
 int main() {
   functionStruct fs0;
   fs0.function = "(x*x)+(x*y)+(y*y)-4";//Shape(Ellipse)
-  point start1;
-  start1.x = 0.0;
-  start1.y = 2.0;
+  pair<double,double> start1;
+  start1.first = 0.0;
+  start1.second = 2.0;
   fs0.start = start1;
   fs0.end = start1;
   vector<functionStruct> functionVector;
